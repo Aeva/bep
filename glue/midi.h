@@ -18,3 +18,29 @@ namespace Midi
 	void PlayNote(int Channel, int Note, int Velocity, int Milliseconds);
 }
 
+
+namespace Score
+{
+	struct NoteEvent
+	{
+		int Note;
+		int Velocity;
+		float Time;
+	};
+
+	struct Builder
+	{
+		float BeatsPerBar;
+		float BeatUnit;
+		float MsPerBeat;
+		float Cursor;
+		std::vector<NoteEvent> Starts;
+		std::vector<NoteEvent> Stops;
+		Builder(float InBeatsPerBar=4, float InBeatUnit=4, float BPM=144);
+	};
+
+	void AddNote(Builder& Score, int Note, int Velocity, float Size);
+	void Advance(Builder& Score, float Size);
+	std::vector<int> Compile(Builder& Score);
+	void Play(std::vector<int>& CompiledScore, int Channel);
+}

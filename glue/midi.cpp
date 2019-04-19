@@ -159,3 +159,93 @@ void Midi::PlayNote(int Channel, int Note, int Velocity, int Milliseconds)
 	Midi::SendNoteOff(Channel, Note);
 }
 
+
+Score::Builder::Builder(float InBeatsPerBar, float InBeatUnit, float BPM)
+	: BeatsPerBar(InBeatsPerBar)
+	, BeatUnit(InBeatUnit)
+	, Cursor(0)
+{
+	MsPerBeat = (1/BPM) * 60 * 1000;
+}
+
+
+void Score::AddNote(Score::Builder& Score, int Note, int Velocity, float Size)
+{
+	NoteEvent Start;
+	NoteEvent Stop;
+	Start.Note = Note;
+	Start.Velocity = Velocity;
+	Start.Time = Score.Cursor;
+	Stop.Note = Note;
+	Stop.Velocity = 0;
+	Stop.Time = (Score.BeatUnit / Size) * Score.MsPerBeat + Score.Cursor;
+	Score.Starts.push_back(Start);
+	Score.Stops.push_back(Stop);
+}
+
+
+void Score::Advance(Score::Builder& Score, float Size)
+{
+	Score.Cursor += (Score.BeatUnit / Size) * Score.MsPerBeat;
+}
+
+
+std::vector<int> Score::Compile(Score::Builder& Score)
+{
+	std::vector<int> Compiled;
+	const int EventCount = Score.Starts.size();
+	Compiled.reserve(EventCount * 6);
+	int Start = 0;
+	int Stop = 0;
+	while (Stop < EventCount)
+	{
+		const int StopTime = static_cast<int>(Score.Stops[Stop].Time);
+		if (Start < EventCount)
+		{
+			const int StartTime = static_cast<int>(Score.Starts[Start].Time);
+			if (StartTime < StopTime)
+			{
+				std::cout << "Start " << Score.Starts[Start].Note << " at " << StartTime << "\n";
+				Compiled.push_back(Score.Starts[Start].Note);
+				Compiled.push_back(Score.Starts[Start].Velocity);
+				Compiled.push_back(StartTime);
+				++Start;
+				continue;
+			}
+		}
+		std::cout << "Stop " << Score.Stops[Stop].Note << " at " << StopTime << "\n";
+		Compiled.push_back(Score.Stops[Stop].Note);
+		Compiled.push_back(0);
+		Compiled.push_back(StopTime);
+		++Stop;
+		continue;
+	}
+	return Compiled;
+}
+
+
+void Score::Play(std::vector<int>& CompiledScore, int Channel)
+{
+	int Cursor = 0;
+	for(int i=0; i<(CompiledScore.size()-2); i+=3)
+	{
+		const int Note = CompiledScore[i];
+		const int Velocity = CompiledScore[i+1];
+		const int Start = CompiledScore[i+2];
+		const int Wait = Start - Cursor;
+		if (Wait > 0)
+		{
+			usleep(Wait * 1000);
+			Cursor += Wait;
+		}
+		if (Velocity > 0)
+		{
+			Midi::SendNoteOn(Channel, Note, Velocity);
+		}
+		else
+		{
+			Midi::SendNoteOff(Channel, Note);
+		}
+	}
+}
+
